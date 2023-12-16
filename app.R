@@ -1,10 +1,6 @@
-library(rvest)
-library(stringr)
-library(dplyr)
-library(tidyr)
+library(tidyverse)
 library(httr)
 library(modeest)
-library(ggplot2)
 library(ggrepel)
 library(ggpmisc)
 library(gridExtra)
@@ -23,11 +19,11 @@ library(emayili)
 my_url <- "https://www.amazon.com/s?k=reusable+straws"
 user_agent <- user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) 
                          AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36")
-my_session <- html_session(my_url, user_agent)
+my_session <- session(my_url, user_agent)
 
 ### Functions and variables ###
 get_keyword_overview <- function(keyword_link) {
-  keyword_page <- my_session %>% jump_to(keyword_link)
+  keyword_page <- my_session %>% session_jump_to(keyword_link)
   
   product_title <- keyword_page %>%
     html_nodes(".a-color-base.a-text-normal") %>%
@@ -310,10 +306,9 @@ my.ui <- dashboardPage(skin = "purple",
                                      img(src = "Double-Peaked.png", width = 150, height = 75),
                                      img(src = "Edge Peak.png", width = 150, height = 75),
                                      img(src = "Comb.png", width = 150, height = 75),
-                                     img(src = "Normal.png", width = 150, height = 75)#,
-                                     #img(src = "Plateau Distribution.png", width = 100, height = 50)
+                                     img(src = "Normal.png", width = 150, height = 75)
                                    ),
-                                   choiceValues = list(1, 2, 3, 4, 5)#, 6)
+                                   choiceValues = list(1, 2, 3, 4, 5)
                              )
                   ),
                   data.step = 4,
@@ -445,13 +440,13 @@ my.server <- function(input, output, session) {
                  )
     
     my_email <- envelope() %>%
-      from("feedback@lunaarce.com") %>%
-      to("feedback@lunaarce.com") %>%
+      from("vanja@manborgconsulting.com") %>%
+      to("vanja@manborgconsulting.com") %>%
       subject(paste("Feedback from", isolate(input$user_email))) %>%
       text(my_msg)
     
-    my_smtp = server(host = "mailcluster.loopia.se", port = 587, username = "feedback@lunaarce.com",
-                   password = "ESgFwVewv4J7xLC")
+    my_smtp = server(host = "x", port = 587, username = "vanja@manborgconsulting.com",
+                   password = "x")
     
     my_smtp(my_email, verbose = TRUE)
     
