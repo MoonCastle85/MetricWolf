@@ -303,7 +303,7 @@ my.ui <- dashboardPage(skin = "purple",
             column(5,
               fluidRow(column(12, 
                 introBox(   
-                  hidden(
+                  #hidden(
                     radioButtons(inputId = "rb", label = "If the selected chart does not match your result,
                                           select a different distribution", inline = TRUE,
                                    choiceNames = list(
@@ -314,8 +314,8 @@ my.ui <- dashboardPage(skin = "purple",
                                      img(src = "Normal.png", width = 150, height = 75)
                                    ),
                                    choiceValues = list(1, 2, 3, 4, 5)
-                             )
-                  ),
+                             ),
+                  #),
                   data.step = 4,
                   data.intro = "If the selected distribution does not match the chart on the left, select a better 
                                 fitting distribution.",
