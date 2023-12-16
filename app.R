@@ -17,59 +17,64 @@ library(emayili)
 
 # Initialise session
 my_url <- "https://www.amazon.com/s?k=reusable+straws"
-user_agent <- user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) 
-                         AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36")
+user_agent <- user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:120.0) Gecko/20100101 Firefox/120")
 my_session <- session(my_url, user_agent)
 
 ### Functions and variables ###
 get_keyword_overview <- function(keyword_link) {
   keyword_page <- my_session %>% session_jump_to(keyword_link)
   
-  product_title <- keyword_page %>%
-    html_nodes(".a-color-base.a-text-normal") %>%
+  products <- my_session %>%
+    html_elements(".puis-card-border .a-spacing-base")
+  
+  product_title1 <- products %>%
+    html_element(".s-line-clamp-3") %>%
     html_text() %>%
     str_trim()
   
-  price_whole <- keyword_page %>%
-    html_nodes(".a-price-whole") %>%
-    html_text()
+  product_title2 <- products %>%
+    html_element(".s-line-clamp-4") %>%
+    html_text() %>%
+    str_trim()
   
-  price_fraction <- keyword_page %>%
-    html_nodes(".a-price-fraction") %>%
-    html_text()
+  product_titles <- coalesce(product_title1, product_title2)
+  
+  price_whole <- products %>%
+    html_element(".a-price-whole") %>%
+    html_text(.) %>%
+    as.integer(.) %>%
+    replace_na(., 1)
+  
+  price_fraction <- products %>%
+    html_element(".a-price-fraction") %>%
+    html_text(.) %>%
+    as.integer(.) %>%
+    replace_na(., 1)
   
   product_prices <- as.numeric(str_c(price_whole, price_fraction))
   
-  review_rating <- keyword_page %>%
-    html_nodes(".aok-align-bottom") %>%
+  review_rating <- products %>%
+    html_element(".aok-align-bottom") %>%
     html_text() %>%
     str_sub(., 1, 3) %>%
     as.numeric(.)
   
-  review_count <- keyword_page %>%
-    html_nodes(".a-size-small .a-link-normal .a-size-base") %>%
+  review_count <- products %>%
+    html_element(".s-link-style .s-underline-text") %>%
     html_text() %>%
     gsub(",", "", .) %>%
     as.integer(.)
   
-  asin.pattern <- "[B][0].{8}"
-  product_ASIN <- keyword_page %>%
-    html_nodes(".a-size-base.a-link-normal.a-text-normal") %>%
-    html_attr("href") %>%
-    str_extract(., asin.pattern)
+  product_ASIN <- my_session %>%
+    html_elements("div") %>%
+    html_attr("data-asin") %>%
+    str_extract(., "B0\\w{8}") %>%
+    na.omit(.) %>%
+    as.character(.)
   
   product_links <- paste0("https://www.amazon.com/dp/", product_ASIN)
   
-  max_length <- max(c(length(product_title), length(product_ASIN), length(product_prices), 
-                      length(review_rating), length(review_count), length(product_links)))
-  length(product_title) <- max_length
-  length(product_ASIN) <- max_length
-  length(product_prices) <- max_length
-  length(review_rating) <- max_length
-  length(review_count) <- max_length
-  length(product_links) <- max_length
-  
-  keyword_data <- cbind(product_title, product_ASIN, product_prices, review_rating, review_count, product_links)
+  keyword_data <- cbind(product_titles, product_ASIN, product_prices, review_rating, review_count, product_links)
   
   return(keyword_data)
 }
@@ -96,7 +101,7 @@ theme_hc <- function(){
     axis.text           = element_text(face = "bold"),
     legend.title        = element_blank(),
     legend.position     = "none",
-    panel.grid.major.y  = element_line(color = "gray", size = 0.5),
+    panel.grid.major.y  = element_line(color = "gray", linewidth = 0.5),
     panel.grid.minor.y  = element_blank(),
     panel.grid.major.x  = element_blank(),
     panel.grid.minor.x  = element_blank(),
@@ -359,7 +364,7 @@ my.server <- function(input, output, session) {
   observeEvent(input$analyzeButton, {
     enable("tutorial")
     user_url <- isolate(input$user_keyword)
-    keyword_products <- reactive(get_keyword_pages(user_url, 3))
+    keyword_products <- reactive(get_keyword_pages(user_url, 1))
     
     #Improve so that products without reviews still make the cut
     products <- reactive({
