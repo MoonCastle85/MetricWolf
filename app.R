@@ -25,68 +25,37 @@ get_keyword_overview <- function(keyword_link) {
   keyword_page <- my_session %>% session_jump_to(keyword_link)
   
   products <- my_session %>%
-    html_elements(".puis-card-border .a-spacing-base")
+    read_html() %>%
+    html_elements(".sg-col-inner") %>%
+    map(~tibble(
+      title = html_element(.x, ".a-color-base.a-text-normal") %>% html_text2(),
+      price = html_element(.x, ".a-offscreen") %>% html_text2(),
+      rating = html_element(.x, ".aok-align-bottom") %>% html_text2(),
+      rating_count = html_element(.x, ".s-link-style .s-underline-text") %>% html_text2(),
+      asin = html_element(.x, ".s-widget-container") %>% html_attr("data-csa-c-item-id"))) %>%
+    list_rbind(.)
   
-  product_title1 <- products %>%
-    html_element(".s-line-clamp-3") %>%
-    html_text() %>%
-    str_trim()
+  product_info <- products %>%
+    filter(!is.na(asin)) %>%
+    mutate(asin = str_split_i(asin, "\\.", -1),
+           rating_count = as.numeric(str_replace_all(rating_count, ",", "")),
+           rating = as.numeric(str_split_i(rating, " ", 1)),
+           price = as.numeric(str_replace(price, "\\$", "")),
+           product_link = paste0("https://www.amazon.com/dp/", asin))
   
-  product_title2 <- products %>%
-    html_element(".s-line-clamp-4") %>%
-    html_text() %>%
-    str_trim()
-  
-  product_titles <- coalesce(product_title1, product_title2)
-  
-  price_whole <- products %>%
-    html_element(".a-price-whole") %>%
-    html_text(.) %>%
-    as.integer(.) %>%
-    replace_na(., 1)
-  
-  price_fraction <- products %>%
-    html_element(".a-price-fraction") %>%
-    html_text(.) %>%
-    as.integer(.) %>%
-    replace_na(., 1)
-  
-  product_prices <- as.numeric(str_c(price_whole, price_fraction))
-  
-  review_rating <- products %>%
-    html_element(".aok-align-bottom") %>%
-    html_text() %>%
-    str_sub(., 1, 3) %>%
-    as.numeric(.)
-  
-  review_count <- products %>%
-    html_element(".s-link-style .s-underline-text") %>%
-    html_text() %>%
-    gsub(",", "", .) %>%
-    as.integer(.)
-  
-  product_ASIN <- my_session %>%
-    html_elements("div") %>%
-    html_attr("data-asin") %>%
-    str_extract(., "B0\\w{8}") %>%
-    na.omit(.) %>%
-    as.character(.)
-  
-  product_links <- paste0("https://www.amazon.com/dp/", product_ASIN)
-  
-  keyword_data <- cbind(product_titles, product_ASIN, product_prices, review_rating, review_count, product_links)
-  
-  return(keyword_data)
+  return(product_info)
 }
+
 get_keyword_pages <- function(original_link, number_of_pages) {
   result_df <- data.frame()
   for(page_number in c(1:number_of_pages)) {
     current_url <- paste0(original_link, page_number)
-    result_single_page <- data.frame(get_keyword_overview(current_url))
-    result_df <- rbind(result_df, result_single_page)
-  }
+    result_single_page <- get_keyword_overview(current_url)
+    result_df <- rbind(result_df, result_single_page)}
+  
   return(result_df)
 }
+
 replace_price_text <- function(text) {
   result <- str_to_upper(str_replace_all(text, "_", " "))
   return(result)
@@ -108,13 +77,14 @@ theme_hc <- function(){
     panel.border        = element_blank(),
     panel.background    = element_blank(),
     axis.ticks.y        = element_blank(),
-    axis.ticks.x        = element_blank()
-  )
+    axis.ticks.x        = element_blank())
 }
+
 myFormat <- function(number, dig) {
   result <- formatC(number, digits = dig, big.mark = " ", format = "f")
   return(result)
 }
+
 my_colours <- c("#e41a1c", "#377eb8", "#4daf4a", "#984ea3", "#ff7f00")
 myTableTheme <- ttheme_default(core = list(fg_params = list(col = my_colours)))
 my_lines <- c("dotted", "dashed", "solid", "dotdash", "dotted")
@@ -127,67 +97,55 @@ proper_email <- function(input) {
 price_analysis_text <- list(
   r_skewed_distr_text <- tags$table(
     tags$tr(
-      tags$td(icon("info")), tags$td("Most products related to this keyword are priced close to MEDIAN price")
-    ),
+      tags$td(icon("info")), tags$td("Most products related to this keyword are priced close to MEDIAN price")),
+    
     tags$tr(
       tags$td(icon("exclamation")), tags$td("There are some products that are priced differently (pack of X deals 
-                                            or premium versions)")
-    ),
+                                            or premium versions)")),
+    
     tags$tr(
       tags$td(icon("exclamation")), tags$td("Check the full dataset to identify in what sub-niche your product 
-                                            belongs.")
-    ),
+                                            belongs.")),
+    
     tags$tr(
-      tags$td(icon("check")), tags$td("Otherwise, set your product price close to MEDIAN to be competitive")
-    )
-  ),
+      tags$td(icon("check")), tags$td("Otherwise, set your product price close to MEDIAN to be competitive"))),
   
   double_peaked_distr_text <- tags$table(
     tags$tr(
-      tags$td(icon("info")), tags$td("There are two separate sub-niches of products related to this keyword.")
-    ),
+      tags$td(icon("info")), tags$td("There are two separate sub-niches of products related to this keyword.")),
+    
     tags$tr(
       tags$td(icon("exclamation")), tags$td("Check the full dataset to identify in what sub-niche your product 
-                                            belongs.")
-    ),
+                                            belongs.")),
+    
     tags$tr(
-      tags$td(icon("check")), tags$td("Otherwise, use the MOST FREQUENT price as a guide to set your price.")
-    )
-  ),
+      tags$td(icon("check")), tags$td("Otherwise, use the MOST FREQUENT price as a guide to set your price."))),
   
   edge_peak_distr_text <- tags$table(
     tags$tr(
-      tags$td(icon("info")), tags$td("Most products related to this keyword are priced close to MEAN price")
-    ),
+      tags$td(icon("info")), tags$td("Most products related to this keyword are priced close to MEAN price")),
+    
     tags$tr(
       tags$td(icon("exclamation")), tags$td("There is a clear sub-niche of products that are priced differently. 
                                             Check the full dataset to identify if you should price your product 
-                                            in that sub-niche instead.")
-    ),
+                                            in that sub-niche instead.")),
     tags$tr(
-      tags$td(icon("check")), tags$td("Otherwise, set your product price close to MEAN to be competitive")
-    )
-  ),
+      tags$td(icon("check")), tags$td("Otherwise, set your product price close to MEAN to be competitive"))),
   
   comb_distr_text <- tags$table(
     tags$tr(
       tags$td(icon("info")), tags$td("There is a high amount of price variation of products related to this 
-                                     keyword")
-    ),
+                                     keyword")),
     tags$tr(
       tags$td(icon("check")), tags$td("Try a more specific keyword or use the MOST FREQUENT price as a guide to 
-                                      set your price")
-    )
-  ),
+                                      set your price"))),
   
   normal_distr_text <- tags$table(
     tags$tr(
-      tags$td(icon("info")), tags$td("Most products related to this keyword are priced close to MEAN price")
-    ),
+      tags$td(icon("info")), tags$td("Most products related to this keyword are priced close to MEAN price")),
+    
     tags$tr(
-      tags$td(icon("check")), tags$td("Set your product price close to MEAN to be competitive")
-    )
-  )
+      tags$td(icon("check")), tags$td("Set your product price close to MEAN to be competitive")))
 )
 
 waiting_screen <- tagList(
@@ -217,12 +175,12 @@ my.ui <- dashboardPage(skin = "purple",
           data.step = 2,
           data.intro = "You can change the URL of the page you wish to analyze here. Just remember to
                         press 'Analyze'!",
-          data.position = "right"
-        ),
+          data.position = "right"),
+        
         disabled(
           actionButton(inputId = "tutorial", label = "Tutorial", icon = icon("graduation-cap"),
-                       style = "color: #fff; background-color: #51a3d6 ")
-        ),
+                       style = "color: #fff; background-color: #51a3d6 ")),
+        
         tags$footer(
           style = "position: absolute; bottom: 5%; left: -3%;",
           dropdownButton(
@@ -242,8 +200,8 @@ my.ui <- dashboardPage(skin = "purple",
                 outline = TRUE,
                 bigger = TRUE,
                 icon_on = icon("thumbs-up"),
-                icon_off = icon("thumbs-down")
-              ),
+                icon_off = icon("thumbs-down")),
+              
               prettyToggle(
                 inputId = "visual",
                 label_on = "Great design!",
@@ -253,8 +211,8 @@ my.ui <- dashboardPage(skin = "purple",
                 outline = TRUE,
                 bigger = TRUE,
                 icon_on = icon("thumbs-up"),
-                icon_off = icon("thumbs-down")
-              ),
+                icon_off = icon("thumbs-down")),
+              
               prettyToggle(
                 inputId = "purchase",
                 label_on = "Would buy the full version!",
@@ -264,25 +222,20 @@ my.ui <- dashboardPage(skin = "purple",
                 outline = TRUE,
                 bigger = TRUE,
                 icon_on = icon("thumbs-up"),
-                icon_off = icon("thumbs-down")
-              ),
+                icon_off = icon("thumbs-down")),
+              
               tags$hr(),
               textAreaInput(inputId = "user_feedback", label = "I have more to say!", width = "100%", rows = 2,
                             value = "", resize = "vertical"),
               textInput(inputId = "user_email", label = "Please enter a valid email", 
                         placeholder = "john.smith@gmail.com"),
               actionButton(inputId = "send_feedback", label = "Make it better", icon = icon("paper-plane"),
-                             style = "color: #fff; background-color: #51a3d6 ")
-            )
-          )
-        )
-      ),
+                             style = "color: #fff; background-color: #51a3d6 "))))),
       data.step = 1,
       data.intro = "The sidebar contains links to tools for analyzing different product metrics like prices,
                     reviews and keywords.",
-      data.position = "right"
-    )
-  ),
+      data.position = "right")),
+  
   body = dashboardBody(
     introjsUI(),
     useShinyjs(),
@@ -290,6 +243,7 @@ my.ui <- dashboardPage(skin = "purple",
     use_waitress(),
     tabItems(
       tabItem(tabName = "prices",
+        fluidPage(
           fluidRow(
             column(7,
                introBox(
@@ -297,13 +251,12 @@ my.ui <- dashboardPage(skin = "purple",
                  data.step = 3,
                  data.intro = "The chart shows the distribution of product prices based on the URL you 
                                are analyzing.",
-                 data.position = "bottom"
-               )
-            ),
+                 data.position = "bottom")),
+            
             column(5,
               fluidRow(column(12, 
                 introBox(   
-                  #hidden(
+                  hidden(
                     radioButtons(inputId = "rb", label = "If the selected chart does not match your result,
                                           select a different distribution", inline = TRUE,
                                    choiceNames = list(
@@ -311,34 +264,26 @@ my.ui <- dashboardPage(skin = "purple",
                                      img(src = "Double-Peaked.png", width = 150, height = 75),
                                      img(src = "Edge Peak.png", width = 150, height = 75),
                                      img(src = "Comb.png", width = 150, height = 75),
-                                     img(src = "Normal.png", width = 150, height = 75)
-                                   ),
-                                   choiceValues = list(1, 2, 3, 4, 5)
-                             ),
-                  #),
+                                     img(src = "Normal.png", width = 150, height = 75)),
+                                   choiceValues = list(1, 2, 3, 4, 5))),
                   data.step = 4,
                   data.intro = "If the selected distribution does not match the chart on the left, select a better 
                                 fitting distribution.",
-                  data.position = "bottom"
-                )
-              )),
-              fluidRow(column(12, 
+                  data.position = "bottom"))),
+              
+              fluidRow(column(12, style = 'padding-top: 30px',
                 introBox(
                   valueBoxOutput("vbox", width = 12),
                   data.step = 5,
                   data.intro = "The analysis window will provide important insights into the pricing of products
                                 from the URL you are analyzing.",
-                  data.position = "top"
-                )
-              ))
-            )
-          )
-      ),
+                  data.position = "top"))))),
+          
+          fluidRow(column(12, DT::dataTableOutput(outputId = "final_table"), style = 'padding-top: 30px')))),
+      
       tabItem(tabName = "reviews", fluidRow(column(12, h1("Coming soon")))),
-      tabItem(tabName = "keywords", fluidRow(column(12, h1("Coming soon")))),
-      tabItem(tabName = "dataset", fluidRow(column(12, DT::dataTableOutput(outputId = "final_table"))))
-    )
-  ),
+      tabItem(tabName = "keywords", fluidRow(column(12, h1("Coming soon")))))),
+  
   tags$head(
     tags$style(
       HTML(
@@ -351,11 +296,7 @@ my.ui <- dashboardPage(skin = "purple",
                     margin-left: 0px;
                     margin-right: 10px;
                     margin-bottom: 10px;
-          }
-        "
-      )
-    ) 
-  )
+          }")))
 )
 
 my.server <- function(input, output, session) {
@@ -364,33 +305,22 @@ my.server <- function(input, output, session) {
   observeEvent(input$analyzeButton, {
     enable("tutorial")
     user_url <- isolate(input$user_keyword)
-    keyword_products <- reactive(get_keyword_pages(user_url, 1))
-    
-    #Improve so that products without reviews still make the cut
-    products <- reactive({
-      keyword_products() %>% 
-        filter(complete.cases(.)) %>%
-        mutate(across(c(3:5), as.numeric))
-    })
+    keyword_products <- reactive(get_keyword_pages(user_url, 3))
     
     # Extract metrics
     digits.pattern <- "[0-9]+\\.*[0-9]*"
-    product_count <- reactive(nrow(products()))
+    product_count <- reactive(nrow(keyword_products()))
   
-    price_metrics0 <- reactive({ products() %>%
-      summarise(Min_price = round(min(product_prices, na.rm = TRUE), 2),
-                Mean_price = round(mean(product_prices, na.rm = TRUE), 2),
-                Median_price = round(median(product_prices, na.rm = TRUE), 2),
-                Most_frequent_price = round(mfv1(product_prices, na_rm = TRUE), 2),
-                Max_price = round(max(product_prices, na.rm = TRUE), 2)
-      )
-    })
+    price_metrics0 <- reactive({ keyword_products() %>%
+      summarise(Min_price = round(min(price, na.rm = TRUE), 2),
+                Mean_price = round(mean(price, na.rm = TRUE), 2),
+                Median_price = round(median(price, na.rm = TRUE), 2),
+                Most_frequent_price = round(mfv1(price, na_rm = TRUE), 2),
+                Max_price = round(max(price, na.rm = TRUE), 2))})
   
     price_metrics <- reactive({ price_metrics0() %>%
         pivot_longer(cols = everything(), names_to = "Metric", values_to = "Price") %>%
-        mutate(across(.cols = Metric, .fns = replace_price_text)) %>%
-        arrange(., Price)
-    })
+        arrange(., Price)})
   
     # Plots
     output$price_plot <- renderPlot({
@@ -403,7 +333,7 @@ my.server <- function(input, output, session) {
       
       print(
         ggplot() +
-        geom_freqpoly(data = products(), mapping = aes(x = product_prices), bins = 30,
+        geom_freqpoly(data = keyword_products(), mapping = aes(x = price), bins = 30,
                       colour = "#014209", lwd = 1, pad = TRUE) +
         geom_vline(data = price_metrics(), mapping = aes(xintercept = Price),
                    colour = my_colours, linetype = my_lines, lwd = 1) +
@@ -413,27 +343,24 @@ my.server <- function(input, output, session) {
              x = "Price [USD]", y = "Number of products") +
         scale_y_continuous(n.breaks = 10, expand = c(0, 0)) +
         scale_x_continuous(n.breaks = 10, expand = c(0, 0), limits = c(0, NA)) +
-        theme_hc()
-      )
-    })
+        theme_hc())})
   
     # Output for GUI
     output$final_table <- DT::renderDataTable({
-      datatable(products(), colnames = c("Product Title", "ASIN", "Price, USD", "Review Rating",
-                                         "Review Amount", "Product link"))
-    })
+      datatable(keyword_products(), colnames = c("Product Title", "Price, USD", "Review Rating",
+                                         "Review Amount", "ASIN", "Product link"))})
+    
     output$vbox <- renderValueBox({
       valueBox(value = "Price Analysis", subtitle = price_analysis_text[[as.integer(input$rb)]], 
-               icon = icon("dollar-sign"), color = "blue", width = NULL) 
-    })
+               icon = icon("dollar-sign"), color = "blue", width = NULL)})
+    
     show("rb")
     
   })
   observeEvent(input$tutorial, introjs(session))
   
   observe({
-    toggleState(id = "send_feedback", condition = proper_email(input$user_email))
-  })
+    toggleState(id = "send_feedback", condition = proper_email(input$user_email))})
   
   observeEvent(input$send_feedback, {
     my_msg <- paste(
@@ -441,8 +368,7 @@ my.server <- function(input, output, session) {
                  "Functionality", isolate(input$functionality),
                  "Visual", isolate(input$visual),
                  "Purchase", isolate(input$purchase),
-                 "User feedback", isolate(input$user_feedback), sep = "\n"
-                 )
+                 "User feedback", isolate(input$user_feedback), sep = "\n")
     
     my_email <- envelope() %>%
       from("vanja@manborgconsulting.com") %>%
@@ -459,9 +385,7 @@ my.server <- function(input, output, session) {
       session = session,
       title = "Feedback sent!",
       text = "Thank you for your suggestions",
-      type = "success"
-    )
-  })
+      type = "success")})
 }
 
 shinyApp(ui = my.ui, server = my.server)
